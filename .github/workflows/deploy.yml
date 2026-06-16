@@ -23,3 +23,16 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/my-devops-project:latest
+
+      - name: Deploy to my PC via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/my-devops-project:latest
+            docker stop my-site || true
+            docker rm my-site || true
+            docker run -d -p 8080:80 --name my-site ${{ secrets.DOCKER_USERNAME }}/my-devops-project:latest
