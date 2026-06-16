@@ -1,11 +1,11 @@
-name: Build and push Docker image
+name: Build, push and deploy demo
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -24,15 +24,17 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/my-devops-project:latest
 
-      - name: Deploy to my PC via SSH
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          port: ${{ secrets.SSH_PORT }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            docker pull ${{ secrets.DOCKER_USERNAME }}/my-devops-project:latest
-            docker stop my-site || true
-            docker rm my-site || true
-            docker run -d -p 8080:80 --name my-site ${{ secrets.DOCKER_USERNAME }}/my-devops-project:latest
+      - name: Run container on runner
+        run: |
+          docker run -d -p 8080:80 --name my-site ${{ secrets.DOCKER_USERNAME }}/my-devops-project:latest
+
+      - name: Install ngrok and create tunnel
+        run: |
+          curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt-get update && sudo apt-get install ngrok
+          ngrok config add-authtoken ${{ secrets.NGROK_AUTHTOKEN }}
+          ngrok http 8080 --log=stdout > /dev/null &
+          sleep 5
+          echo "Публичная ссылка:"
+          curl -s localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url'
