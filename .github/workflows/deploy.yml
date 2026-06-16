@@ -26,7 +26,16 @@ jobs:
 
       - name: Run container on runner
         run: |
+          # Запускаем контейнер
           docker run -d -p 8080:80 --name my-site ${{ secrets.DOCKER_USERNAME }}/my-devops-project:latest
+          # Ждём пару секунд для уверенности
+          sleep 5
+          # Проверяем, что контейнер жив
+          docker ps -a
+          # Смотрим логи контейнера (вдруг он упал)
+          docker logs my-site
+          # Проверяем, отвечает ли сам веб-сервер внутри контейнера
+          curl -v http://localhost:8080 || true
 
       - name: Install ngrok and create tunnel
         run: |
@@ -34,6 +43,7 @@ jobs:
           echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
           sudo apt-get update && sudo apt-get install ngrok
           ngrok config add-authtoken ${{ secrets.NGROK_AUTHTOKEN }}
+          # Запускаем ngrok, пробрасывая на localhost:8080
           ngrok http 8080 --log=stdout > /dev/null &
           sleep 5
           echo "Публичная ссылка:"
