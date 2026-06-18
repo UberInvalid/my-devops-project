@@ -43,8 +43,14 @@ jobs:
           echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
           sudo apt-get update && sudo apt-get install ngrok
           ngrok config add-authtoken ${{ secrets.NGROK_AUTHTOKEN }}
-          # Запускаем ngrok, пробрасывая на localhost:8080
-          ngrok http 8080 --log=stdout > /dev/null &
-          sleep 5
-          echo "Публичная ссылка:"
-          curl -s localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url'
+          # Запускаем ngrok и пишем его логи в файл, чтобы видеть ошибки
+          ngrok http 8080 --log=stdout > ngrok.log 2>&1 &
+          # Ждём подольше (10 секунд), чтобы туннель точно поднялся
+          sleep 10
+          # Показываем, что ngrok жив
+          ps aux | grep ngrok
+          # Показываем первые 20 строк лога ngrok (вдруг там ошибка)
+          head -n 20 ngrok.log
+          # Пытаемся достать публичный URL
+          curl -s localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' || echo "Не удалось получить URL, смотрим лог полностью:"
+          cat ngrok.log
