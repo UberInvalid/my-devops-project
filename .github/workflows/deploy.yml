@@ -1,4 +1,4 @@
-name: Build, push and deploy demo
+name: Build, push and deploy with bore
 
 on:
   push:
@@ -24,27 +24,35 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/my-devops-project:latest
 
-      - name: Run container on runner
+      - name: Run container and check
         run: |
-          # Запускаем контейнер
           docker run -d -p 8080:80 --name my-site ${{ secrets.DOCKER_USERNAME }}/my-devops-project:latest
-          # Ждём пару секунд для уверенности
           sleep 5
-          # Проверяем, что контейнер жив
           docker ps -a
-          # Смотрим логи контейнера (вдруг он упал)
-          docker logs my-site
-          # Проверяем, отвечает ли сам веб-сервер внутри контейнера
-          curl -v http://localhost:8080 || true
+          curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 || true
+          echo ""
+          echo "Контейнер должен быть жив. Запускаем туннель..."
 
-      - name: Tunnel with localhost.run
+      - name: Create tunnel with bore
         run: |
-          # Запускаем SSH-туннель в фоне, пишем лог в файл
-          ssh -o StrictHostKeyChecking=accept-new -R 80:localhost:8080 nokey@localhost.run > tunnel.log 2>&1 &
-          # Ждём, чтобы туннель поднялся и URL появился
-          sleep 10
-          # Выводим лог, чтобы ты увидел ссылку
-          echo "Лог туннеля (ищи строку с https://...localhost.run):"
-          cat tunnel.log
-          # Держим туннель ещё 60 секунд, чтобы ты успел открыть сайт
-          sleep 60
+          # Скачиваем и распаковываем bore
+          curl -L -o bore.tar.gz https://github.com/ekzhang/bore/releases/download/v0.5.0/bore-v0.5.0-x86_64-unknown-linux-musl.tar.gz
+          tar xzf bore.tar.gz
+          chmod +x bore
+          # Запускаем bore, вывод пишем в файл
+          ./bore local 8080 --to bore.pub > bore.log 2>&1 &
+          # Ждём 8 секунд, чтобы bore точно поднялся и написал "listening at..."
+          sleep 8
+          # Читаем лог и ищем порт
+          echo "=== Лог bore ==="
+          cat bore.log
+          echo "=== Конец лога ==="
+          # Извлекаем порт (число после последнего двоеточия) и формируем ссылку
+          PORT=$(grep -oP 'listening at bore\.pub:\K\d+' bore.log | tail -1)
+          if [ -n "$PORT" ]; then
+            echo "Публичная ссылка: http://bore.pub:$PORT"
+          else
+            echo "Не удалось извлечь порт. Открой лог выше и составь ссылку сам: http://bore.pub:ПОРТ"
+          fi
+          # Держим туннель ещё 2 минуты, чтобы ты успел открыть сайт
+          sleep 120
