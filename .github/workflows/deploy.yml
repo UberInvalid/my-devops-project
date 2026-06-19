@@ -37,20 +37,17 @@ jobs:
           # Проверяем, отвечает ли сам веб-сервер внутри контейнера
           curl -v http://localhost:8080 || true
 
-      - name: Install ngrok and create tunnel
+      - name: Tunnel with bore (no token needed)
         run: |
-          curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-          sudo apt-get update && sudo apt-get install ngrok
-          ngrok config add-authtoken ${{ secrets.NGROK_AUTHTOKEN }}
-          # Запускаем ngrok и пишем его логи в файл, чтобы видеть ошибки
-          ngrok http 8080 --log=stdout > ngrok.log 2>&1 &
-          # Ждём подольше (10 секунд), чтобы туннель точно поднялся
-          sleep 10
-          # Показываем, что ngrok жив
-          ps aux | grep ngrok
-          # Показываем первые 20 строк лога ngrok (вдруг там ошибка)
-          head -n 20 ngrok.log
-          # Пытаемся достать публичный URL
-          curl -s localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' || echo "Не удалось получить URL, смотрим лог полностью:"
-          cat ngrok.log
+          # Скачиваем и распаковываем bore
+          curl -L -o bore.tar.gz https://github.com/ekzhang/bore/releases/download/v0.5.0/bore-v0.5.0-x86_64-unknown-linux-musl.tar.gz
+          tar xzf bore.tar.gz
+          chmod +x bore
+          # Запускаем туннель на порт 8080 в фоне
+          ./bore local 8080 --to bore.pub &
+          # Даём ему время подняться
+          sleep 5
+          # Покажем логи, чтобы найти порт
+          echo "Bore запущен. Ищи в логах строку 'listening at bore.pub:' ниже."
+          # Ждём ещё минуту, чтобы ты успел открыть ссылку
+          sleep 60
